@@ -24,7 +24,7 @@ On the Huang Complex the same pattern scales from one node to many by giving eac
 | `dock/prep.py` | Receptor and ligand preparation (PDBFixer, Open Babel, RDKit, Meeko). |
 | `dock/redock.py`, `dock/rmsd.py` | Redocking check for risperidone, and RMSD to the crystal pose. |
 | `ml/ml_bench.py` | AIMNet2 conformer embedding and energy-plus-force throughput. |
-| `sp.py`, `ibogaine_mh.xyz`, `ibogaine.xyz` | GPU4PySCF single points on protonated ibogaine (50 atoms) and the neutral molecule, the two energies behind a proton affinity. |
+| `sp.py`, `withaferin_a_mh.xyz`, `withaferin_a.xyz` | GPU4PySCF single points on withaferin A, the main withanolide of ashwagandha (*Withania somnifera*), as the neutral molecule (72 atoms) and protonated at the C-1 ketone (73 atoms). The two energies give a proton affinity, the kind of quantity the pipeline uses to rank ion forms. |
 | `tested_ligands_5HT2A.csv` | Uni-Dock scores for the docked ligands. |
 | `ligands_2000.smi` | 2,000 drug-like compounds (MW 180 to 500) from public MS/MS libraries. |
 
@@ -72,4 +72,4 @@ None of the three packages installs cleanly from prebuilt packages on aarch64.
 | AIMNet2, 9,980 conformers | 10.2 s | 5.4 s | 13.2 s |
 | DFT, 51-atom cation / radical (see note) | 85 s / 249 s | 2.01x on 4 calcs | 3.7 s / 10.2 s |
 
-The DFT timings were measured on a 51-atom organic cation and its radical that are not distributed here. The public test molecule in this repository, protonated ibogaine, is the same size, so timings should be similar. For comparison, ORCA on 16 CPU cores takes 257 s / 428 s for the same DFT. GH200 and A40 energies are identical. Docking scores agree between architectures to 0.12 kcal/mol on average.
+The DFT timings in this row were measured on a 51-atom organic cation and its radical that are not distributed here. The withaferin A test molecule is larger (72 and 73 atoms), so its calculations take longer. For comparison, ORCA on 16 CPU cores takes 257 s / 428 s for the same DFT. GH200 and A40 energies are identical. Docking scores agree between architectures to 0.12 kcal/mol on average.
