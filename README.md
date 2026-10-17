@@ -1,4 +1,4 @@
-## Before you spend lots of time and resources trying to measure a potentially bioactive molecule, can we be better at working out how it might be measurable at all?
+## Can we make measurability part of how we choose which potentially bioactive molecules to pursue, rather than a problem we discover along the way?
 
 ![From a target to a detector: acetyltropine from ashwagandha root, with every stage of the pipeline predicted before a sample is run](docs/pipeline_slide.png)
 
