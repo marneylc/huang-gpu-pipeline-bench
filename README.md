@@ -4,6 +4,10 @@
 
 *What the pipeline answers, on one compound. Acetyltropine is a tropane alkaloid of* Withania somnifera *root. Every number on that slide was computed before any sample was measured: whether it binds, which MALDI matrix can ionize it, where it lands in a mobility cell, how it fragments, and what else arrives at the same mass in tissue. The code here is the GPU benchmark for the stages that need one.*
 
+The slide is the question. This repository is the engine room underneath it: the stages that need a GPU, timed on real inputs so the compute request in the application has measurements behind it rather than estimates.
+
+One thing to be explicit about, because the figure and the code do not use the same target. The DFT stage here computes acetyltropine's proton affinity, which is the quantity behind stage 2 of the slide. The docking stage does **not** dock acetyltropine. It docks a 1,997-compound library into the 5-HT2A receptor (PDB 6A93), because a throughput benchmark needs a large ligand set and a receptor with a crystal ligand to redock against, and that pair was already prepared. The muscarinic docking behind stage 1 of the slide was run separately, outside this repository. Changing the benchmark's receptor would change the timings and nothing else about the pattern being measured.
+
 This benchmarks the three GPU stages of a docking-plus-mass-spectrometry prediction pipeline: docking (Uni-Dock), a machine-learned potential (AIMNet2), and DFT (GPU4PySCF). It runs on Novus x86 GPU nodes (A40, RTX) and on the ARM GH200 Grace-Hopper node. Every molecule is independent, so each GPU gets its own share of the work, and throughput should scale close to linearly with GPU count.
 
 Luke Marney, Oregon State University, October 2026. Test code for the 2026 OSU Huang Complex Supercomputing Seed Fund application "From target to detector, predicting the ions that therapeutic small molecules actually form in mass spectrometry". It was developed on the OSU Novus cluster.
@@ -23,10 +27,10 @@ On the Huang Complex the same pattern scales from one node to many by giving eac
 | File | What it does |
 |---|---|
 | `setup_envs.sh` | Builds the conda environments. On x86 they come from prebuilt packages. On ARM, GPU4PySCF and Uni-Dock are built from source. |
-| `make_inputs.sbatch` | CPU job. Downloads the 5-HT2A receptor (PDB 6A93), prepares the receptor and 1,997 ligands, and embeds ML conformers. |
+| `make_inputs.sbatch` | CPU job. Downloads the 5-HT2A receptor (PDB 6A93), prepares the receptor and 1,997 ligands, and embeds ML conformers. The receptor is the benchmark's docking target, not the target in the figure above. |
 | `novus_gpu_benchmark.sbatch` | The benchmark. Runs all three stages on however many GPUs the job gets and reports the timings. |
 | `dock/prep.py` | Receptor and ligand preparation (PDBFixer, Open Babel, RDKit, Meeko). |
-| `dock/redock.py`, `dock/rmsd.py` | Redocking check for risperidone, and RMSD to the crystal pose. |
+| `dock/redock.py`, `dock/rmsd.py` | Redocking check for risperidone, the 6A93 crystal ligand, and RMSD to its measured pose. This is the correctness check on the docking stage: if the software cannot reproduce a known pose, its scores mean nothing. |
 | `ml/ml_bench.py` | AIMNet2 conformer embedding and energy-plus-force throughput. |
 | `sp.py`, `acetyltropine_mh.xyz`, `acetyltropine.xyz` | GPU4PySCF single points on acetyltropine, a tropane alkaloid of ashwagandha (*Withania somnifera*) root, as the neutral molecule (30 atoms) and protonated at the ring nitrogen (31 atoms). The two energies give a proton affinity, the kind of quantity the pipeline uses to rank ion forms. |
 | `tested_ligands_5HT2A.csv` | Uni-Dock scores for the docked ligands. |
