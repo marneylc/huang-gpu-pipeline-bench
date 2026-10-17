@@ -6,7 +6,7 @@
 
 This repo is meant to step you through running a small little compound on your own hardware, then step it up to more and more compute power. The nice part for the chemist is that if you can understand how one molecule would do it, doing it with thousands makes more sense.
 
-The first compound is acetyltropine, a tropane alkaloid of ashwagandha root (*Withania somnifera*). It is a good example because it is small, it is real, and every stage gives an answer in minutes rather than days. We figured some interesting bioactivity about it out recently and it highlights for me about how interesting it is that it seems that life chooses handedness even down to the way molecules are made (https://www.sciencedirect.com/science/article/pii/S0378874125015971?via%3Dihub).
+The first compound is acetyltropine, a tropane alkaloid of ashwagandha root (*Withania somnifera*). It is a good example because it is small, it is real, and every stage gives an answer in minutes rather than days. Also, we figured out some interesting bioactivity about it recently (https://www.sciencedirect.com/science/article/pii/S0378874125015971). It highlights for me about how interesting it is that life chooses to build molecules in a particular direction. For more pondering check out 2026's chemistry Nobel prize winners: https://www.nobelprize.org/uploads/2026/10/press-chemistryprize2026.pdf
 
 The code here covers four of the five stages on the header image of this README:
 

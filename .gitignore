@@ -22,3 +22,4 @@ acetyltropine_*.out
 cfmid.sif
 cfmid_out/
 interference.json
+dft_*.txt
