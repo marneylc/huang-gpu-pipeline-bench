@@ -1,8 +1,7 @@
-# Acetyltropine, from a target to a detector
+## Before you spend lots of time and resources trying to measure a potentially bioactive molecule, can we be better at working out how it might be measurable at all?
 
 ![From a target to a detector: acetyltropine from ashwagandha root, with every stage of the pipeline predicted before a sample is run](docs/pipeline_slide.png)
 
-**Before you spend lots of time and resources trying to measure a potentially bioactive molecule, can we be better at working out how it might be measurable at all?**
 
 This repo is meant to step you through running a small little compound on your own hardware, then step it up to more and more compute power. The nice part for the chemist is that if you can understand how one molecule would do it, doing it with thousands makes more sense.
 
