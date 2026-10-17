@@ -6,7 +6,7 @@ A small, complete worked example of the question this project asks: **before you
 
 The compound is acetyltropine, a tropane alkaloid of ashwagandha root (*Withania somnifera*). It is a good example because it is small, it is real, and every stage gives an answer in minutes rather than days.
 
-The code here covers the first two stages on that slide, the two that need a cluster:
+The code here covers the first two stages on that slide:
 
 1. **Does it bind?** Dock it into the M1 muscarinic receptor, the switch that atropine and scopolamine block.
 2. **Does it take a charge?** Compute its proton affinity, which is what decides whether a MALDI matrix can ionize it.
@@ -69,6 +69,27 @@ rank by score per atom: tropine, acetyltropine, 3-tigloyloxytropane, atropine, s
 
 Bigger molecules make more contacts, so they climb the raw ranking almost automatically. Acetyltropine is 13 heavy atoms, about half the size of the drugs it is up against. Neither column is wrong. Reporting only one of them is.
 
+## Then scale it, and that is where the GPU comes in
+
+Seven ligands do not need a GPU, and `run_local.sh` does them on CPU in minutes. The GPU case is throughput: a screening library, not a handful of compounds.
+
+```
+sbatch --gres=gpu:1 scale_gpu.sbatch     # then 2, then 4
+```
+
+That docks 1,997 drug-like compounds plus the seven tropanes with Uni-Dock, splitting the list across however many GPUs the job is given. Every ligand is independent and nothing is communicated between GPUs, so wall time should fall close to linearly with GPU count. The job prints `ligands_per_s`; run it at one, two and four GPUs and compare.
+
+It finishes by answering the question the seven-ligand example cannot:
+
+```
+ligand                     score  heavy     raw rank   per-atom rank
+acetyltropine              -6.51     13     1768/2004       147/2004
+```
+
+Seven ligands tell you nothing about whether a score is good. Two thousand give it a distribution to sit in, and acetyltropine's two ranks land at opposite ends of it.
+
+This scaling behaviour is the argument behind the compute request the repository was written for.
+
 ## Files
 
 | File | What it does |
@@ -81,6 +102,8 @@ Bigger molecules make more contacts, so they climb the raw ranking almost automa
 | `sp.py`, `acetyltropine{,_mh}.xyz` | GPU4PySCF single points on the neutral molecule (30 atoms) and the ring-nitrogen protomer (31 atoms). The difference is the proton affinity. |
 | `run.sbatch` | All of it, in one Slurm job. |
 | `run_local.sh` | Everything except the proton affinity, on one machine, no scheduler. |
+| `scale_gpu.sbatch`, `prep_library.py`, `rank.py` | The same docking on 1,997 compounds with Uni-Dock, split across GPUs, then where acetyltropine ranks among them. |
+| `ligands_2000.smi` | 2,000 drug-like compounds (MW 180 to 500) from public MS/MS libraries. |
 
 ## What it needs
 

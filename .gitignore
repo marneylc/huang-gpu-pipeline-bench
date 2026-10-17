@@ -11,3 +11,11 @@ ml/confs.npy
 dock/part_*
 dock/recA*.pdb
 withaferin_a*.xyz
+library/
+out_g*/
+part_*
+all.txt
+protonation/
+poses/
+scale_*.out
+acetyltropine_*.out

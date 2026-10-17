@@ -4,7 +4,9 @@ set -euo pipefail
 
 conda create -y -n dock python=3.11
 conda install -y -n dock -c conda-forge openbabel numpy rdkit openmm pdbfixer
-conda run -n dock pip install vina meeko
+# gemmi is a meeko dependency that meeko 0.8.0 does not declare, so pip will not pull it
+# in and the first import fails. Install it explicitly.
+conda run -n dock pip install vina meeko gemmi
 
 # GPU4PySCF: match the wheel to the CUDA version on your node (nvidia-smi).
 conda create -y -n qmgpu python=3.11
