@@ -2,29 +2,35 @@
 
 ![From a target to a detector: acetyltropine from ashwagandha root, with every stage of the pipeline predicted before a sample is run](docs/pipeline_slide.png)
 
-A small, complete worked example of the question this project asks: **before you spend a year trying to measure a molecule, can you work out whether it is measurable at all?**
+**Before you spend lots of time and resources trying to measure a potentially bioactive molecule, can we be better at working out how it might be measurable at all?**
 
-The compound is acetyltropine, a tropane alkaloid of ashwagandha root (*Withania somnifera*). It is a good example because it is small, it is real, and every stage gives an answer in minutes rather than days.
+This repo is meant to step you through running a small little compound on your own hardware, then step it up to more and more compute power. The nice part for the chemist is that if you can understand how one molecule would do it, doing it with thousands makes more sense.
 
-The code here covers the first two stages on that slide:
+The first compound is acetyltropine, a tropane alkaloid of ashwagandha root (*Withania somnifera*). It is a good example because it is small, it is real, and every stage gives an answer in minutes rather than days. We figured some interesting bioactivity about it out recently and it highlights for me about how interesting it is that it seems that life chooses handedness even down to the way molecules are made (https://www.sciencedirect.com/science/article/pii/S0378874125015971?via%3Dihub).
+
+The code here covers four of the five stages on the header image of this README:
 
 1. **Does it bind?** Dock it into the M1 muscarinic receptor, the switch that atropine and scopolamine block.
 2. **Does it take a charge?** Compute its proton affinity, which is what decides whether a MALDI matrix can ionize it.
+3. **How does it break?** Predict its fragmentation, which is what a targeted assay actually watches.
+4. **Can you see it?** Work out what else arrives at the same mass in a tissue section.
 
-There is a third thing in between, and it is the part worth your attention:
+Stage 3 on the slide, the ion mobility, is not here. It needs a trained CCS predictor, and the one we used would not separate acetyltropine from its isomer anyway, which is a limitation worth knowing rather than a step to copy.
 
-3. **Does the method work at all?** Redock a ligand whose real position is already known, and see whether the software finds it.
+And one more thing in between, which is the part worth your attention:
+
+**Does the method work at all?** Redock a ligand whose real position is already known, and see whether the software finds it.
 
 ## Run it
 
-On a cluster, all of it including the proton affinity:
+On a cluster, spread across multiple GPUs, the whole thing: docking, the redock check, the protonation comparison, the proton affinity by DFT, fragmentation, and the interference check:
 
 ```
 bash setup_env.sh          # two conda environments, once
 sbatch run.sbatch          # edit the account line first
 ```
 
-On one machine with no scheduler, everything except the proton affinity. Docking is CPU only, so this does not need a GPU:
+On one machine with no scheduler, everything except the proton affinity. We run Docking as CPU only, so this does not need a GPU if you don't have one:
 
 ```
 bash setup_env.sh          # the `dock` environment is the only one you need
@@ -39,6 +45,8 @@ python prep.py             # fetch 5CXV, build the receptor and seven ligands
 python dock.py             # dock them, report two kinds of score
 python redock.py           # check the setup against a pose we already know
 python protonation.py      # what getting the protonation wrong costs
+python fragment.py         # CFM-ID, fetches a container the first time
+python interference.py     # what else lands at 184.133
 python sp.py acetyltropine_mh.xyz 1 1 cation    # needs a GPU
 ```
 
@@ -50,10 +58,10 @@ python sp.py acetyltropine_mh.xyz 1 1 cation    # needs a GPU
 
 | ligand | protonated | neutral | score moves | pose moves |
 |---|---|---|---|---|
-| cocaine | -9.40 | -8.93 | -0.47 | **3.22 A** |
 | 3-tigloyloxytropane | -7.72 | -7.79 | +0.07 | **2.37 A** |
 | atropine | -9.14 | -9.29 | +0.16 | 1.49 A |
 | scopolamine | -9.45 | -9.33 | -0.12 | 1.37 A |
+| cocaine | -9.40 | -8.93 | -0.47 | **3.22 A** |
 | tropine | -5.72 | -5.98 | +0.26 | 0.69 A |
 | acetyltropine | -6.51 | -6.50 | -0.01 | 0.08 A |
 | tiotropium | -9.29 | -9.29 | +0.00 | no basic N |
@@ -100,6 +108,8 @@ This scaling behaviour is the argument behind the compute request the repository
 | `redock.py` | The correctness check described above. Symmetry-aware RMSD, computed in place without realignment, because realigning would quietly forgive a pose in the wrong place. |
 | `protonation.py` | Docks every ligand protonated and neutral and tabulates what changed. |
 | `sp.py`, `acetyltropine{,_mh}.xyz` | GPU4PySCF single points on the neutral molecule (30 atoms) and the ring-nitrogen protomer (31 atoms). The difference is the proton affinity. |
+| `fragment.py` | CFM-ID fragmentation prediction. Fetches the container itself, and says what to install if neither Apptainer nor Docker is present. |
+| `interference.py` | The matrix cluster series and the ubiquitous tissue ions, against the analyte mass, each with the resolving power needed to separate it. |
 | `run.sbatch` | All of it, in one Slurm job. |
 | `run_local.sh` | Everything except the proton affinity, on one machine, no scheduler. |
 | `scale_gpu.sbatch`, `prep_library.py`, `rank.py` | The same docking on 1,997 compounds with Uni-Dock, split across GPUs, then where acetyltropine ranks among them. |

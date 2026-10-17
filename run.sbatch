@@ -33,3 +33,9 @@ echo; echo "=== 4. proton affinity of acetyltropine"
 "$DFT_ENV"/bin/python sp.py acetyltropine_mh.xyz 1 1 cation
 "$DFT_ENV"/bin/python sp.py acetyltropine.xyz    0 1 neutral
 echo "proton affinity = (E_neutral - E_cation) * 627.5094 + 1.48 kcal/mol"
+
+echo; echo "=== 5. how it breaks in the mass spectrometer"
+"$DOCK_ENV"/bin/python fragment.py
+
+echo; echo "=== 6. what else arrives at the same mass"
+"$DOCK_ENV"/bin/python interference.py

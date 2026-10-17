@@ -19,3 +19,6 @@ protonation/
 poses/
 scale_*.out
 acetyltropine_*.out
+cfmid.sif
+cfmid_out/
+interference.json

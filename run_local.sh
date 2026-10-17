@@ -17,6 +17,11 @@ python redock.py
 echo
 python protonation.py
 echo
-echo "done. the proton affinity step needs a GPU:"
+python interference.py
+echo
+echo "fragmentation needs the CFM-ID container; it fetches it the first time:"
+echo "  python fragment.py"
+echo
+echo "the proton affinity step needs a GPU:"
 echo "  python sp.py acetyltropine_mh.xyz 1 1 cation"
 echo "  python sp.py acetyltropine.xyz    0 1 neutral"
