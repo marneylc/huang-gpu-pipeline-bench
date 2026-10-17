@@ -1,83 +1,91 @@
-# GPU pipeline benchmark for the Huang Complex seed fund application
+# Acetyltropine, from a target to a detector
 
 ![From a target to a detector: acetyltropine from ashwagandha root, with every stage of the pipeline predicted before a sample is run](docs/pipeline_slide.png)
 
-*What the pipeline answers, on one compound. Acetyltropine is a tropane alkaloid of* Withania somnifera *root. Every number on that slide was computed before any sample was measured: whether it binds, which MALDI matrix can ionize it, where it lands in a mobility cell, how it fragments, and what else arrives at the same mass in tissue. The code here is the GPU benchmark for the stages that need one.*
+A small, complete worked example of the question this project asks: **before you spend a year trying to measure a molecule, can you work out whether it is measurable at all?**
 
-The slide is the question. This repository is the engine room underneath it: the stages that need a GPU, timed on real inputs so the compute request in the application has measurements behind it rather than estimates.
+The compound is acetyltropine, a tropane alkaloid of ashwagandha root (*Withania somnifera*). It is a good example because it is small, it is real, and every stage gives an answer in minutes rather than days.
 
-One thing to be explicit about, because the figure and the code do not use the same target. The DFT stage here computes acetyltropine's proton affinity, which is the quantity behind stage 2 of the slide. The docking stage does **not** dock acetyltropine. It docks a 1,997-compound library into the 5-HT2A receptor (PDB 6A93), because a throughput benchmark needs a large ligand set and a receptor with a crystal ligand to redock against, and that pair was already prepared. The muscarinic docking behind stage 1 of the slide was run separately, outside this repository. Changing the benchmark's receptor would change the timings and nothing else about the pattern being measured.
+The code here covers the first two stages on that slide, the two that need a cluster:
 
-This benchmarks the three GPU stages of a docking-plus-mass-spectrometry prediction pipeline: docking (Uni-Dock), a machine-learned potential (AIMNet2), and DFT (GPU4PySCF). It runs on Novus x86 GPU nodes (A40, RTX) and on the ARM GH200 Grace-Hopper node. Every molecule is independent, so each GPU gets its own share of the work, and throughput should scale close to linearly with GPU count.
+1. **Does it bind?** Dock it into the M1 muscarinic receptor, the switch that atropine and scopolamine block.
+2. **Does it take a charge?** Compute its proton affinity, which is what decides whether a MALDI matrix can ionize it.
 
-Luke Marney, Oregon State University, October 2026. Test code for the 2026 OSU Huang Complex Supercomputing Seed Fund application "From target to detector, predicting the ions that therapeutic small molecules actually form in mass spectrometry". It was developed on the OSU Novus cluster.
+There is a third thing in between, and it is the part worth your attention:
 
-## How the pipeline uses multiple GPUs
+3. **Does the method work at all?** Redock a ligand whose real position is already known, and see whether the software finds it.
 
-Every docking pose, conformer and DFT calculation is independent, so the pipeline uses many GPUs by running one worker per GPU on its own share of the work, with no communication between GPUs. `novus_gpu_benchmark.sbatch` shows the pattern for all three stages.
+## Run it
 
-1. It counts the GPUs Slurm gave the job (`nvidia-smi -L`).
-2. It splits the input list into that many parts (`split -n l/$NGPU`).
-3. It launches one background process per GPU, each pinned with `CUDA_VISIBLE_DEVICES=$g`, and waits for all of them.
+On a cluster, all of it including the proton affinity:
 
-On the Huang Complex the same pattern scales from one node to many by giving each Slurm array task or node its own slice of the list. A job layer that packs calculations onto free GPUs, checkpoints results and retries failed convergence is part of the proposed work.
+```
+bash setup_env.sh          # two conda environments, once
+sbatch run.sbatch          # edit the account line first
+```
+
+On one machine with no scheduler, everything except the proton affinity. Docking is CPU only, so this does not need a GPU:
+
+```
+bash setup_env.sh          # the `dock` environment is the only one you need
+conda activate dock
+bash run_local.sh          # about ten minutes on 16 cores
+```
+
+Each step also runs on its own:
+
+```
+python prep.py             # fetch 5CXV, build the receptor and seven ligands
+python dock.py             # dock them, report two kinds of score
+python redock.py           # check the setup against a pose we already know
+python protonation.py      # what getting the protonation wrong costs
+python sp.py acetyltropine_mh.xyz 1 1 cation    # needs a GPU
+```
+
+## The three things this example is really about
+
+**A docking score is not evidence that the pose is right.** `redock.py` takes tiotropium, whose position in 5CXV was measured by crystallography, and docks it back in. It lands 0.97 angstrom from where it actually sits, which passes. If it had not, nothing else the docking says could be trusted, and the scores would have looked perfectly reasonable anyway.
+
+**Getting the protonation wrong is invisible in the score.** Every tropane here except tiotropium is a tertiary amine with a pKa near 9.5, so at body pH it carries a proton, and that ammonium makes the salt bridge that anchors it. `prep.py` builds them that way. `protonation.py` builds them both ways, changes nothing else, and docks both:
+
+| ligand | protonated | neutral | score moves | pose moves |
+|---|---|---|---|---|
+| cocaine | -9.40 | -8.93 | -0.47 | **3.22 A** |
+| 3-tigloyloxytropane | -7.72 | -7.79 | +0.07 | **2.37 A** |
+| atropine | -9.14 | -9.29 | +0.16 | 1.49 A |
+| scopolamine | -9.45 | -9.33 | -0.12 | 1.37 A |
+| tropine | -5.72 | -5.98 | +0.26 | 0.69 A |
+| acetyltropine | -6.51 | -6.50 | -0.01 | 0.08 A |
+| tiotropium | -9.29 | -9.29 | +0.00 | no basic N |
+
+The score never moves half a kcal/mol. The pose moves anywhere from nothing to three angstrom, and the two columns have nothing to do with each other. Acetyltropine barely moves because it is small and rigid; the flexible esters swing right round. So the answer is not "protonation always matters", it is that the error is invisible in the score and you cannot guess which case you are in. You check.
+
+**How you keep score decides who wins.** `dock.py` prints the raw score and the score per heavy atom, and prints both rankings. They come out exactly reversed:
+
+```
+rank by raw score:      scopolamine, tiotropium, atropine, 3-tigloyloxytropane, acetyltropine, tropine
+rank by score per atom: tropine, acetyltropine, 3-tigloyloxytropane, atropine, scopolamine, tiotropium
+```
+
+Bigger molecules make more contacts, so they climb the raw ranking almost automatically. Acetyltropine is 13 heavy atoms, about half the size of the drugs it is up against. Neither column is wrong. Reporting only one of them is.
 
 ## Files
 
 | File | What it does |
 |---|---|
-| `setup_envs.sh` | Builds the conda environments. On x86 they come from prebuilt packages. On ARM, GPU4PySCF and Uni-Dock are built from source. |
-| `make_inputs.sbatch` | CPU job. Downloads the 5-HT2A receptor (PDB 6A93), prepares the receptor and 1,997 ligands, and embeds ML conformers. The receptor is the benchmark's docking target, not the target in the figure above. |
-| `novus_gpu_benchmark.sbatch` | The benchmark. Runs all three stages on however many GPUs the job gets and reports the timings. |
-| `dock/prep.py` | Receptor and ligand preparation (PDBFixer, Open Babel, RDKit, Meeko). |
-| `dock/redock.py`, `dock/rmsd.py` | Redocking check for risperidone, the 6A93 crystal ligand, and RMSD to its measured pose. This is the correctness check on the docking stage: if the software cannot reproduce a known pose, its scores mean nothing. |
-| `ml/ml_bench.py` | AIMNet2 conformer embedding and energy-plus-force throughput. |
-| `sp.py`, `acetyltropine_mh.xyz`, `acetyltropine.xyz` | GPU4PySCF single points on acetyltropine, a tropane alkaloid of ashwagandha (*Withania somnifera*) root, as the neutral molecule (30 atoms) and protonated at the ring nitrogen (31 atoms). The two energies give a proton affinity, the kind of quantity the pipeline uses to rank ion forms. |
-| `tested_ligands_5HT2A.csv` | Uni-Dock scores for the docked ligands. |
-| `ligands_2000.smi` | 2,000 drug-like compounds (MW 180 to 500) from public MS/MS libraries. |
+| `prep.py` | Downloads PDB 5CXV, prepares chain A with PDBFixer and Open Babel, and builds the ligands from `ligands.smi` with their ring nitrogens protonated. |
+| `ligands.smi` | Seven tropanes: acetyltropine, tropine and 3-tigloyloxytropane from the root, plus tiotropium, atropine, scopolamine and cocaine as known tropane ligands to measure against. |
+| `dock.py` | AutoDock Vina, box centred on the crystal ligand. Writes `scores.json` and the poses. |
+| `redock.py` | The correctness check described above. Symmetry-aware RMSD, computed in place without realignment, because realigning would quietly forgive a pose in the wrong place. |
+| `protonation.py` | Docks every ligand protonated and neutral and tabulates what changed. |
+| `sp.py`, `acetyltropine{,_mh}.xyz` | GPU4PySCF single points on the neutral molecule (30 atoms) and the ring-nitrogen protomer (31 atoms). The difference is the proton affinity. |
+| `run.sbatch` | All of it, in one Slurm job. |
+| `run_local.sh` | Everything except the proton affinity, on one machine, no scheduler. |
 
-## Running on Novus
+## What it needs
 
-These notes are specific to the OSU Novus cluster. Replace `YOUR_ACCOUNT` with your Slurm account.
+A machine with GPUs and Slurm. AutoDock Vina, RDKit, Meeko, PDBFixer, Open Babel and Open Babel's `obabel` on PATH for the docking side; PySCF and GPU4PySCF for the proton affinity. `setup_env.sh` builds both.
 
-- Jobs must be submitted from `/scratch/$USER`. Submitting from home is rejected. Scratch is purged after 90 days, so the setup script keeps source builds in `~/src`.
-- The login node has no GPU driver, so GPU code can only be tested inside a job.
-- Exclude `gpu001` (Tesla K40, driver 470). Its driver is too old for CUDA 12.
-- Point `TMPDIR` and `PIP_CACHE_DIR` at scratch, because `/tmp` is a small tmpfs. The scripts already do this.
+Developed on Oregon State's Novus cluster for the 2026 OSU Huang Complex Supercomputing Seed Fund application, "From target to detector, predicting the ions that therapeutic small molecules actually form in mass spectrometry". Luke Marney, Oregon State University.
 
-## Steps
-
-```bash
-mkdir -p /scratch/$USER/pipeline_bench && cp -r novus_pipeline_bench/* /scratch/$USER/pipeline_bench/
-cd /scratch/$USER/pipeline_bench
-
-# 1. Build the software (about 20 min on x86, about 1 hour on ARM)
-srun -p preempt-gpu.q -A YOUR_ACCOUNT -x gpu001 --gres=gpu:1 -c 16 --mem=32G -t 2:00:00 bash setup_envs.sh   # x86
-srun -p cos-arm.q     -A YOUR_ACCOUNT           --gres=gpu:1 -c 16 --mem=64G -t 3:00:00 bash setup_envs.sh   # ARM GH200
-
-# 2. Make the inputs (needs the x86 environments)
-sbatch make_inputs.sbatch
-
-# 3. Run the benchmark
-sbatch novus_gpu_benchmark.sbatch                        # 2x A40 by default
-sbatch --gres=gpu:4 novus_gpu_benchmark.sbatch           # more GPUs, if a node has them
-sbatch -p cos-arm.q --gres=gpu:1 novus_gpu_benchmark.sbatch   # ARM GH200
-```
-
-## ARM build notes (aarch64)
-
-None of the three packages installs cleanly from prebuilt packages on aarch64.
-
-- **GPU4PySCF**: there is no aarch64 wheel. Build v1.8.1 from source with conda-forge CUDA 12.6 and `CUDA_ARCHITECTURES=90`, then `pip install pyscf-dispersion`.
-- **Uni-Dock**: there is no aarch64 conda package. Build from GitHub with conda-forge CUDA, Boost, and `libcurand-dev`. Without `libcurand-dev`, the build fails on `curand_kernel.h`.
-- **AIMNet2**: the PyTorch cu126 aarch64 wheel works. Its dependency NVIDIA Warp needs two fixes. Replace the pip `warp-lang` (it needs glibc 2.35, and the node has 2.34) with the conda-forge build. Then set `warp.config.use_precompiled_headers = False`, because torch's NVRTC 12.6 rejects `-pch`. `ml_bench.py` already sets this.
-
-## Reference results (October 2026)
-
-| Stage | 1x A40 | 2x A40 | 1x GH200 |
-|---|---|---|---|
-| Docking, 1,997 ligands | 145 s | 84 s | 89 s |
-| AIMNet2, 9,980 conformers | 10.2 s | 5.4 s | 13.2 s |
-| DFT, 51-atom cation / radical (see note) | 85 s / 249 s | 2.01x on 4 calcs | 3.7 s / 10.2 s |
-
-The DFT timings in this row were measured on a 51-atom organic cation and its radical that are not distributed here. The acetyltropine test molecule is smaller (30 and 31 atoms), so its calculations are quicker; scale accordingly when comparing. For comparison, ORCA on 16 CPU cores takes 257 s / 428 s for the same DFT. GH200 and A40 energies are identical. Docking scores agree between architectures to 0.12 kcal/mol on average.
+The acetyltropine chemistry it rests on is in Dutta et al., *J Ethnopharmacol* **357**:120905 (2026), which synthesized the compound, separated it from its isomer acetyl exotropine by retention time and 2D-NMR, and showed the root extract's effect in *Drosophila*.
