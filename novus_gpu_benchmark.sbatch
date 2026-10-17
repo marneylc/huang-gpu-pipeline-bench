@@ -15,7 +15,7 @@
 # Expected inputs in the working directory:
 #   dock/receptor.pdbqt, dock/box.txt (center x y z), dock/all.txt (one ligand .pdbqt per line)
 #   ml/ml_bench.py, ml/confs.npy
-#   sp.py, withaferin_a_mh.xyz, withaferin_a.xyz
+#   sp.py, acetyltropine_mh.xyz, acetyltropine.xyz
 
 #SBATCH -J pipeline_gpu_bench
 #SBATCH -p preempt-gpu.q          # A40 / RTX nodes; cos-arm.q for the GH200 (ARM)
@@ -73,8 +73,8 @@ cd ..
 # ---------- 3. DFT ----------
 t0=$(date +%s)
 for ((g=0; g<NGPU; g++)); do
-  ( CUDA_VISIBLE_DEVICES=$g "$DFT_ENV"/bin/python sp.py withaferin_a_mh.xyz 1 1 gpu$g
-    CUDA_VISIBLE_DEVICES=$g "$DFT_ENV"/bin/python sp.py withaferin_a.xyz 0 1 gpu$g ) &
+  ( CUDA_VISIBLE_DEVICES=$g "$DFT_ENV"/bin/python sp.py acetyltropine_mh.xyz 1 1 gpu$g
+    CUDA_VISIBLE_DEVICES=$g "$DFT_ENV"/bin/python sp.py acetyltropine.xyz 0 1 gpu$g ) &
 done
 wait
 echo "DFT  calcs=$((2*NGPU))  wall_s=$(( $(date +%s) - t0 ))"
