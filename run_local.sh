@@ -19,6 +19,9 @@ python protonation.py
 echo
 python interference.py
 echo
+echo "ion mobility needs its own python 3.7 environment, see setup_env.sh:"
+echo "  conda run -n deepccs python ccs.py"
+echo
 echo "fragmentation needs the CFM-ID container; it fetches it the first time:"
 echo "  python fragment.py"
 echo

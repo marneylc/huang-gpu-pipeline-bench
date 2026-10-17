@@ -23,3 +23,6 @@ cfmid.sif
 cfmid_out/
 interference.json
 dft_*.txt
+DeepCCS_src/
+ccs_in.csv
+ccs_out.csv

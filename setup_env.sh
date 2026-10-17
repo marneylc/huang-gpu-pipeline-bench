@@ -15,3 +15,11 @@ conda run -n qmgpu pip install pyscf gpu4pyscf-cuda12x cupy-cuda12x
 echo
 echo "built. point run.sbatch at them if they are not in ~/miniforge3/envs:"
 echo "  DOCK_ENV=... DFT_ENV=... sbatch run.sbatch"
+
+# DeepCCS is a 2019 model: python 3.7 and TensorFlow 1.15, so it needs its own environment and
+# cannot share either of the others. It is CPU only, which is fine, because a prediction takes
+# seconds and there is no GPU build of TF 1.15 worth the trouble.
+# Do not pin numpy here. Pinning it alongside TF 1.15 makes the solve impossible.
+conda create -y -n deepccs python=3.7
+conda install -y -n deepccs -c conda-forge tensorflow=1.15 keras=2.3.1 h5py'<3' pandas
+conda run -n deepccs pip install 'protobuf<3.21'

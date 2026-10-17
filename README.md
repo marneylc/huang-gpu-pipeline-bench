@@ -8,14 +8,13 @@ This repo is meant to step you through running a small little compound on your o
 
 The first compound is acetyltropine, a tropane alkaloid of ashwagandha root (*Withania somnifera*). It is a good example because it is small, it is real, and every stage gives an answer in minutes rather than days. Also, we figured out some interesting bioactivity about it recently (https://www.sciencedirect.com/science/article/pii/S0378874125015971). It highlights for me about how interesting it is that life chooses to build molecules in a particular direction. For more pondering check out 2026's chemistry Nobel prize winners: https://www.nobelprize.org/uploads/2026/10/press-chemistryprize2026.pdf
 
-The code here covers four of the five stages on the header image of this README:
+The code here covers all five stages on the header image of this README:
 
 1. **Does it bind?** Dock it into the M1 muscarinic receptor, the switch that atropine and scopolamine block.
 2. **Does it take a charge?** Compute its proton affinity, which is what decides whether a MALDI matrix can ionize it.
-3. **How does it break?** Predict its fragmentation, which is what a targeted assay actually watches.
-4. **Can you see it?** Work out what else arrives at the same mass in a tissue section.
-
-Stage 3 on the slide, the ion mobility, is not here. It needs a trained CCS predictor, and the one we used would not separate acetyltropine from its isomer anyway, which is a limitation worth knowing rather than a step to copy.
+3. **How big is the ion?** Predict its collision cross section, which is what an ion mobility separation measures.
+4. **How does it break?** Predict its fragmentation, which is what a targeted assay actually watches.
+5. **Can you see it?** Work out what else arrives at the same mass in a tissue section.
 
 And one more thing in between, which is the part worth your attention:
 
@@ -26,7 +25,7 @@ And one more thing in between, which is the part worth your attention:
 On a cluster, spread across multiple GPUs, the whole thing: docking, the redock check, the protonation comparison, the proton affinity by DFT, fragmentation, and the interference check:
 
 ```
-bash setup_env.sh          # two conda environments, once
+bash setup_env.sh          # three conda environments, once
 sbatch run.sbatch          # edit the account line first
 ```
 
@@ -45,6 +44,7 @@ python prep.py             # fetch 5CXV, build the receptor and seven ligands
 python dock.py             # dock them, report two kinds of score
 python redock.py           # check the setup against a pose we already know
 python protonation.py      # what getting the protonation wrong costs
+conda run -n deepccs python ccs.py   # ion mobility, its own python 3.7 env
 python fragment.py         # CFM-ID, fetches a container the first time
 python interference.py     # what else lands at 184.133
 python sp.py acetyltropine_mh.xyz 1 1 cation    # needs a GPU
@@ -67,6 +67,23 @@ python sp.py acetyltropine_mh.xyz 1 1 cation    # needs a GPU
 | tiotropium | -9.29 | -9.29 | +0.00 | no basic N |
 
 The score never moves half a kcal/mol. The pose moves anywhere from nothing to three angstrom, and the two columns have nothing to do with each other. Acetyltropine barely moves because it is small and rigid; the flexible esters swing right round. So the answer is not "protonation always matters", it is that the error is invisible in the score and you cannot guess which case you are in. You check.
+
+**A prediction can be precise and still not mean anything.** Acetyltropine has an isomer, acetyl exotropine, that differs only in which face of the ring the ester sits on. Same formula, same precursor mass, same fragments. Ion mobility is the only stage here that could possibly tell them apart, so `ccs.py` asks DeepCCS, and also asks it the same molecule with the stereochemistry deleted:
+
+```
+  acetyltropine, 3-alpha                      144.88
+  acetyl exotropine, 3-beta                   145.11
+  same molecule, stereochemistry stripped     139.58
+
+  the two isomers differ by           0.23  (0.16 %)
+  stripping the stereochemistry by    5.30  (3.66 %)
+```
+
+It does give the isomers different numbers, because `@` and `@@` are characters in the string it reads. But deleting the stereochemistry moves the answer more than twenty times further than swapping it does. The model is keying on the string, not the shape. And separating 0.16 % would need a mobility resolving power near 625, where a timsTOF reaches a few hundred.
+
+So the prediction is precise, reproducible, and not evidence of anything about these two isomers. The real paper had to separate them by retention time and 2D-NMR.
+
+**Doing it properly, if you want to contribute.** The honest way to get a cross section is from a three-dimensional structure: optimise the geometry, compute partial charges, then run the trajectory method, which collides a gas molecule with the ion from many directions and averages. [MobCal-MPI](https://github.com/HopkinsLaboratory/MobCal-MPI) does exactly that, and because it works from a real shape it can in principle separate stereoisomers where a SMILES model cannot. We have not built that stage out here. It is the obvious next piece, and it is a well-defined one.
 
 **How you keep score decides who wins.** `dock.py` prints the raw score and the score per heavy atom, and prints both rankings. They come out exactly reversed:
 
@@ -108,6 +125,7 @@ This scaling behaviour is the argument behind the compute request the repository
 | `redock.py` | The correctness check described above. Symmetry-aware RMSD, computed in place without realignment, because realigning would quietly forgive a pose in the wrong place. |
 | `protonation.py` | Docks every ligand protonated and neutral and tabulates what changed. |
 | `sp.py`, `acetyltropine{,_mh}.xyz` | GPU4PySCF single points on the neutral molecule (30 atoms) and the ring-nitrogen protomer (31 atoms). The difference is the proton affinity. |
+| `ccs.py` | DeepCCS collision cross section for both isomers and for the flat SMILES, so the prediction can be weighed rather than quoted. Fetches DeepCCS itself. |
 | `fragment.py` | CFM-ID fragmentation prediction. Fetches the container itself, and says what to install if neither Apptainer nor Docker is present. |
 | `interference.py` | The matrix cluster series and the ubiquitous tissue ions, against the analyte mass, each with the resolving power needed to separate it. |
 | `run.sbatch` | All of it, in one Slurm job. |

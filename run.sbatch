@@ -60,6 +60,14 @@ cat dft_energies.txt
 echo "DFT  calcs=2  gpus=$NGPU  wall_s=$(( $(date +%s) - t0 ))"
 "$DFT_ENV"/bin/python proton_affinity.py dft_energies.txt
 
+echo; echo "=== 4b. how big the ion looks, and what that prediction is worth"
+CCS_ENV="${CCS_ENV:-$HOME/miniforge3/envs/deepccs}"
+if [ -x "$CCS_ENV/bin/python" ]; then
+  "$CCS_ENV"/bin/python ccs.py 2>&1 | grep -vE 'FutureWarning|np_resource|warnings.warn|tensorflow/|Instructions|WARNING|Using TensorFlow|Starting prediction'
+else
+  echo "skipped: no deepccs environment. setup_env.sh builds one."
+fi
+
 echo; echo "=== 5. how it breaks in the mass spectrometer"
 "$DOCK_ENV"/bin/python fragment.py
 
